@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 380" role="img" aria-labelledby="title desc">
   <title id="title">Alur satu request API</title>
-  <desc id="desc">Request bergerak dari client ke Actix, diperiksa middleware, diolah handler, disimpan ke PostgreSQL, lalu response kembali ke client.</desc>
+  <desc id="desc">Request bergerak dari client ke server Axum, diperiksa middleware, diolah handler, disimpan ke PostgreSQL, lalu response kembali ke client.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b1220"/><stop offset="1" stop-color="#142239"/></linearGradient>
     <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#8296b5" stroke-opacity=".1"/></pattern>

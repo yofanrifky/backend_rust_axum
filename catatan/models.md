@@ -129,7 +129,7 @@ Tidak ada atribut Serde seperti `rename` di file ini. Karena itu nama field meng
 
 ## Yang Tidak Dilakukan oleh Model
 
-Struct dan derive hanya mendefinisikan bentuk data dan konversi. Mereka tidak memeriksa harga positif, nama tidak kosong, atau quantity lebih dari nol. Pemeriksaan tersebut berada di `validate_menu`, `validate_order`, dan logika PATCH pada handler. `Deserialize` juga dapat gagal pada JSON yang bentuk/tipe nilainya tidak cocok; Actix menangani kegagalan ekstraksi body sebelum fungsi handler berjalan.
+Struct dan derive hanya mendefinisikan bentuk data dan konversi. Mereka tidak memeriksa harga positif, nama tidak kosong, atau quantity lebih dari nol. Pemeriksaan tersebut berada di `validate_menu`, `validate_order`, dan logika PATCH pada handler. `Deserialize` juga dapat gagal pada JSON yang bentuk/tipe nilainya tidak cocok; extractor `ApiJson` mengubah kegagalan tersebut menjadi response JSON sebelum fungsi handler berjalan.
 
 ---
 

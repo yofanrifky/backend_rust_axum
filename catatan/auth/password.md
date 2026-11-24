@@ -44,7 +44,7 @@ Pemeriksaan waktu konstan (`ConstantTimeEq`) mengurangi kebocoran informasi dari
 - `password.as_bytes()` mengubah teks password menjadi byte untuk fungsi kriptografi.
 - `Option<String>` berarti hash baru mungkin ada (`Some`) atau tidak (`None`).
 - `.then(...).transpose()?` hanya membuat hash bila perbandingan lama berhasil; jika hash gagal, error diteruskan.
-- `web::block` dipakai handler karena hashing membutuhkan komputasi dan sebaiknya tidak menahan worker async.
+- `tokio::task::spawn_blocking` dipakai handler karena hashing membutuhkan komputasi dan sebaiknya tidak menahan thread async.
 
 ## Tes yang tercantum di file
 

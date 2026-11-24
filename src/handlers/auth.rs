@@ -1,8 +1,15 @@
-use actix_web::{error, web, HttpMessage, HttpResponse};
+use axum::{
+    extract::{Extension, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::Deserialize;
 
 use crate::{
-    auth::{password, role::Role},
+    auth::{jwt::AuthenticatedUser, password, role::Role},
+    error::ApiError,
+    extractors::{ApiJson, ApiPath},
     state::AppState,
 };
 
@@ -13,86 +20,81 @@ pub struct Credentials {
 }
 
 pub async fn register(
-    state: web::Data<AppState>,
-    body: web::Json<Credentials>,
-) -> Result<HttpResponse, actix_web::Error> {
+    State(state): State<AppState>,
+    body: ApiJson<Credentials>,
+) -> Result<Response, ApiError> {
     let username = body.username.trim();
 
     if username.is_empty() || body.password.len() < 8 {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Username wajib diisi dan password minimal 8 byte"
-        })));
+        return Err(ApiError::bad_request(
+            "Username wajib diisi dan password minimal 8 byte",
+        ));
     }
 
     if body.password.len() > 128 {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Password maksimal 128 byte"
-        })));
+        return Err(ApiError::bad_request("Password maksimal 128 byte"));
     }
 
     let password = body.password.clone();
-    let password_hash = web::block(move || password::hash_password(&password))
+    let password_hash = tokio::task::spawn_blocking(move || password::hash_password(&password))
         .await
-        .map_err(|_| error::ErrorInternalServerError("Gagal memproses password"))?
-        .map_err(|_| error::ErrorInternalServerError("Gagal mengamankan password"))?;
+        .map_err(|error| ApiError::internal("Gagal memproses password", error))?
+        .map_err(|error| ApiError::internal("Gagal mengamankan password", error))?;
 
-    match sqlx::query(r#"INSERT INTO "user" (username, password, role) VALUES ($1, $2, $3)"#)
-        .bind(username)
-        .bind(password_hash)
-        .bind(Role::Pembeli.as_str())
-        .execute(&state.db)
-        .await
-    {
-        Ok(_) => Ok(HttpResponse::Created().json(serde_json::json!({
-            "message": "Akun berhasil dibuat"
-        }))),
+    let result =
+        sqlx::query(r#"INSERT INTO "user" (username, password, role) VALUES ($1, $2, $3)"#)
+            .bind(username)
+            .bind(password_hash)
+            .bind(Role::Pembeli.as_str())
+            .execute(&state.db)
+            .await;
+
+    match result {
+        Ok(_) => Ok((
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "message": "Akun berhasil dibuat" })),
+        )
+            .into_response()),
         Err(sqlx::Error::Database(database_error)) if database_error.is_unique_violation() => {
-            Ok(HttpResponse::Conflict().json(serde_json::json!({
-                "error": "Username sudah digunakan"
-            })))
+            Err(ApiError::conflict("Username sudah digunakan"))
         }
-        Err(_) => Err(error::ErrorInternalServerError("Gagal membuat akun")),
+        Err(error) => Err(ApiError::internal("Gagal membuat akun", error)),
     }
 }
 
 pub async fn login(
-    state: web::Data<AppState>,
-    body: web::Json<Credentials>,
-) -> Result<HttpResponse, actix_web::Error> {
+    State(state): State<AppState>,
+    body: ApiJson<Credentials>,
+) -> Result<Response, ApiError> {
     let user = sqlx::query_as::<_, (i32, String, String)>(
         r#"SELECT id, password, role FROM "user" WHERE username = $1"#,
     )
     .bind(body.username.trim())
     .fetch_optional(&state.db)
     .await
-    .map_err(|_| error::ErrorInternalServerError("Gagal memeriksa kredensial"))?;
+    .map_err(|error| ApiError::internal("Gagal memeriksa kredensial", error))?;
 
     let Some((user_id, stored_password, role_name)) = user else {
-        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Username atau password salah"
-        })));
+        return Err(ApiError::unauthorized("Username atau password salah"));
     };
 
     let role = Role::from_database(&role_name)
-        .ok_or_else(|| error::ErrorInternalServerError("Role akun tidak valid"))?;
+        .ok_or_else(|| ApiError::internal_message("Role akun tidak valid"))?;
 
     if body.password.len() > 128 {
-        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Username atau password salah"
-        })));
+        return Err(ApiError::unauthorized("Username atau password salah"));
     }
 
     let password = body.password.clone();
-    let verification =
-        web::block(move || password::verify_and_upgrade(&password, &stored_password))
-            .await
-            .map_err(|_| error::ErrorInternalServerError("Gagal memproses password"))?
-            .map_err(|_| error::ErrorInternalServerError("Gagal mengamankan password"))?;
+    let verification = tokio::task::spawn_blocking(move || {
+        password::verify_and_upgrade(&password, &stored_password)
+    })
+    .await
+    .map_err(|error| ApiError::internal("Gagal memproses password", error))?
+    .map_err(|error| ApiError::internal("Gagal memverifikasi password", error))?;
 
     if !verification.valid {
-        return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Username atau password salah"
-        })));
+        return Err(ApiError::unauthorized("Username atau password salah"));
     }
 
     if let Some(password_hash) = verification.upgraded_hash {
@@ -101,55 +103,48 @@ pub async fn login(
             .bind(user_id)
             .execute(&state.db)
             .await
-            .map_err(|_| error::ErrorInternalServerError("Gagal memperbarui keamanan akun"))?;
+            .map_err(|error| ApiError::internal("Gagal memperbarui keamanan akun", error))?;
     }
 
     let access_token = state
         .jwt
         .issue(user_id, role)
-        .map_err(|_| error::ErrorInternalServerError("Gagal membuat token login"))?;
+        .map_err(|error| ApiError::internal("Gagal membuat token login", error))?;
 
-    Ok(HttpResponse::Ok().json(serde_json::json!({
+    Ok(Json(serde_json::json!({
         "message": "Login berhasil",
         "access_token": access_token,
         "token_type": "Bearer",
         "expires_in": state.jwt.expiration_seconds(),
         "role": role
-    })))
+    }))
+    .into_response())
 }
 
-pub async fn logout() -> HttpResponse {
-    HttpResponse::Ok().json(serde_json::json!({
+pub async fn logout() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
         "message": "Hapus access_token dari penyimpanan klien"
     }))
 }
 
 pub async fn me(
-    state: web::Data<AppState>,
-    request: actix_web::HttpRequest,
-) -> Result<HttpResponse, actix_web::Error> {
-    let user_id = request
-        .extensions()
-        .get::<crate::auth::jwt::AuthenticatedUser>()
-        .map(|user| (user.user_id, user.role))
-        .ok_or_else(|| error::ErrorUnauthorized("Login diperlukan"))?;
-    let (user_id, role) = user_id;
-
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Result<Response, ApiError> {
     let username = sqlx::query_scalar::<_, String>(r#"SELECT username FROM "user" WHERE id = $1"#)
-        .bind(user_id)
+        .bind(user.user_id)
         .fetch_optional(&state.db)
         .await
-        .map_err(|_| error::ErrorInternalServerError("Gagal mengambil profil akun"))?;
+        .map_err(|error| ApiError::internal("Gagal mengambil profil akun", error))?;
 
     match username {
-        Some(username) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "id": user_id,
+        Some(username) => Ok(Json(serde_json::json!({
+            "id": user.user_id,
             "username": username,
-            "role": role
-        }))),
-        None => Ok(HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": "Akun tidak lagi tersedia"
-        }))),
+            "role": user.role
+        }))
+        .into_response()),
+        None => Err(ApiError::unauthorized("Akun tidak lagi tersedia")),
     }
 }
 
@@ -159,34 +154,31 @@ pub struct RoleInput {
 }
 
 pub async fn update_user_role(
-    state: web::Data<AppState>,
-    path: web::Path<i32>,
-    body: web::Json<RoleInput>,
-) -> Result<HttpResponse, actix_web::Error> {
-    let Some(role) = Role::from_database(body.role.trim()) else {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Role harus salah satu dari: admin, kasir, pembeli"
-        })));
-    };
+    State(state): State<AppState>,
+    ApiPath(user_id): ApiPath<i32>,
+    body: ApiJson<RoleInput>,
+) -> Result<Response, ApiError> {
+    let role = Role::from_database(body.role.trim()).ok_or_else(|| {
+        ApiError::bad_request("Role harus salah satu dari: admin, kasir, pembeli")
+    })?;
 
     let updated = sqlx::query_as::<_, (i32, String, String)>(
         r#"UPDATE "user" SET role = $1 WHERE id = $2 RETURNING id, username, role"#,
     )
     .bind(role.as_str())
-    .bind(path.into_inner())
+    .bind(user_id)
     .fetch_optional(&state.db)
     .await
-    .map_err(|_| error::ErrorInternalServerError("Gagal memperbarui role akun"))?;
+    .map_err(|error| ApiError::internal("Gagal memperbarui role akun", error))?;
 
     match updated {
-        Some((id, username, role)) => Ok(HttpResponse::Ok().json(serde_json::json!({
+        Some((id, username, role)) => Ok(Json(serde_json::json!({
             "id": id,
             "username": username,
             "role": role,
             "message": "Role diperbarui; pengguna harus login kembali"
-        }))),
-        None => Ok(HttpResponse::NotFound().json(serde_json::json!({
-            "error": "Akun tidak ditemukan"
-        }))),
+        }))
+        .into_response()),
+        None => Err(ApiError::not_found("Akun tidak ditemukan")),
     }
 }

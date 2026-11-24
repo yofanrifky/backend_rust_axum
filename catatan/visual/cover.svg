@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
   <title id="title">Sampul panduan belajar backend restoran</title>
-  <desc id="desc">Panduan belajar Rust, Actix, dan PostgreSQL. Ikuti alur dari request client melalui route dan handler hingga database, dengan tiga langkah belajar: pahami, telusuri, praktik.</desc>
+  <desc id="desc">Panduan belajar Rust, Axum, dan PostgreSQL. Ikuti alur dari request client melalui route dan handler hingga database, dengan tiga langkah belajar: pahami, telusuri, praktik.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#09111f"/><stop offset="1" stop-color="#142239"/></linearGradient>
     <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#50d3bd"/><stop offset="1" stop-color="#788cff"/></linearGradient>
@@ -14,7 +14,7 @@
   <rect width="1200" height="540" rx="32" fill="url(#bg)"/>
   <g clip-path="url(#canvas)"><rect width="1200" height="540" fill="url(#grid)" opacity=".34"/><circle cx="1080" cy="40" r="230" fill="#4b66a6" opacity=".11"/><circle cx="945" cy="480" r="180" fill="#33a899" opacity=".09"/></g>
   <rect x="66" y="68" width="30" height="4" rx="2" fill="url(#glow)"/>
-  <text x="108" y="75" class="eyebrow">PANDUAN BELAJAR · RUST + ACTIX + POSTGRESQL</text>
+  <text x="108" y="75" class="eyebrow">PANDUAN BELAJAR · RUST + AXUM + POSTGRESQL</text>
   <text x="66" y="170" class="title">Backend restoran,</text><text x="66" y="228" class="title">dari request ke response.</text>
   <text x="69" y="278" class="lead">Ikuti alurnya. Pahami kodenya. Coba sendiri.</text>
   <g>

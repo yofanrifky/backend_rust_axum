@@ -1,6 +1,6 @@
 # Restoran API
 
-REST API restoran menggunakan Rust, Actix Web, dan PostgreSQL. Backend ini tidak menyertakan frontend. Login mengembalikan JWT bearer bertanda tangan HMAC-SHA256; endpoint menu dan pesanan memerlukan token tersebut di header `Authorization`.
+REST API restoran menggunakan Rust, Axum, dan PostgreSQL. Backend ini tidak menyertakan frontend. Login mengembalikan JWT bearer bertanda tangan HMAC-SHA256; endpoint menu dan pesanan memerlukan token tersebut di header `Authorization`.
 
 ## Struktur Proyek
 
@@ -8,6 +8,8 @@ REST API restoran menggunakan Rust, Actix Web, dan PostgreSQL. Backend ini tidak
 backend/
 |-- postman/Restoran-API.postman_collection.json
 |-- src/
+|   |-- error.rs           # Format respons error API yang konsisten
+|   |-- extractors.rs      # Pembacaan JSON, path, dan query dengan error jelas
 |   |-- handlers/
 |   |   |-- auth.rs        # Register, login, logout, dan profil
 |   |   |-- menus.rs       # Operasi menu
@@ -16,11 +18,11 @@ backend/
 |   |   |-- format.rs      # Helper format harga
 |   |   `-- mod.rs         # Daftar modul handler
 |   |-- auth/             # JWT, role, dan password hashing
-|   |-- auth_middleware.rs # Autentikasi dan otorisasi role
+|   |-- auth_middleware.rs # Autentikasi JWT dan pemeriksaan role
 |   |-- db.rs              # Persiapan tabel database
 |   |-- main.rs            # Titik mulai aplikasi
 |   |-- models.rs          # Bentuk data menu dan pesanan
-|   |-- routes.rs          # Pendaftaran endpoint
+|   |-- routes.rs          # Router Axum dan pendaftaran endpoint
 |   `-- state.rs           # Pool database untuk handler
 |-- catatan/               # Panduan belajar per file
 |-- .env                   # Konfigurasi lokal, jangan commit
@@ -136,4 +138,4 @@ Pada `GET /api/menus`, parameter `field` yang didukung adalah `id`, `name`, `pri
 
 Impor `postman/Restoran-API.postman_collection.json`, jalankan server, lalu register dan login. Login otomatis menyimpan bearer token. Role register adalah `pembeli`; untuk mencoba admin/kasir, gunakan endpoint admin setelah admin pertama dipromosikan lewat SQL. Pembelian dan pencatatan pembayaran dilakukan langsung dalam satu request; konfirmasi admin tidak diperlukan.
 
-Panduan menguji API dari terminal menggunakan `curl` ada di [catatan/akses_curl.md](catatan/akses_curl.md). Panduan pemula yang membahas implementasi per file ada di [catatan/README.md](catatan/README.md).# backend-actixweb-rust
+Panduan menguji API dari terminal menggunakan `curl` ada di [catatan/akses_curl.md](catatan/akses_curl.md). Panduan pemula yang membahas implementasi per file ada di [catatan/README.md](catatan/README.md).

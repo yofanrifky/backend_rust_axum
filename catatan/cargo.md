@@ -20,12 +20,13 @@ File sumber: [Cargo.toml](../Cargo.toml).
 
 | Crate | Versi/fitur | Kegunaan |
 |---|---|---|
-| `actix-web` | `4` | Server HTTP, routing, ekstraksi request, dan response. |
+| `axum` | `0.8` | Server HTTP, routing, middleware, ekstraksi request, dan response. |
 | `dotenvy` | `0.15` | Membaca konfigurasi `.env`. |
 | `serde` | `1`, fitur `derive` | Serialisasi/deserialisasi; derive membuat implementasi `Serialize` dan `Deserialize`. |
 | `serde_json` | `1` | Membuat JSON dan macro `json!`. |
 | `rust_decimal` | `1`, fitur `serde` | Angka desimal presisi untuk harga dan dukungan Serde. |
 | `sqlx` | `0.8` | Query asynchronous ke database; fitur dijelaskan di bawah. |
+| `tokio` | `1` dengan `macros` dan `rt-multi-thread` | Runtime asynchronous untuk menjalankan server Axum dan pekerjaan password di thread terpisah. |
 | `argon2` | `0.5` | Meng-hash password dengan Argon2id. |
 | `jsonwebtoken` | `9` | Membuat dan memvalidasi JWT menggunakan HS256. |
 | `subtle` | `2` | Membandingkan password plaintext lama dengan perbandingan waktu-konstan saat migrasi akun. |
@@ -61,14 +62,14 @@ Jalankan perintah dari folder backend yang berisi `Cargo.toml`. Saat `cargo run`
 - `name = "restoran_api"` adalah pasangan key-value. Teks ditulis dalam tanda kutip; angka versi di package ditulis sebagai teks karena mengikuti format versi.
 - `{ version = "1", features = ["derive"] }` adalah inline table: beberapa konfigurasi untuk satu dependency ditulis dalam satu nilai.
 - `features = [ ... ]` adalah array TOML. Setiap string mengaktifkan bagian tertentu dari crate dependency.
-- Pada file ini, `serde` dan `rust_decimal` ditulis sebagai inline table karena masing-masing memakai fitur. `actix-web`, `dotenvy`, dan `serde_json` hanya menyatakan versi.
+- Pada file ini, `serde`, `rust_decimal`, dan `tokio` ditulis sebagai inline table karena memakai fitur. `axum`, `dotenvy`, dan `serde_json` hanya menyatakan versi.
 - `sqlx` memakai inline table multi-baris karena daftarnya lebih panjang. Pemisahan baris hanya untuk keterbacaan; secara makna tetap satu konfigurasi dependency.
 
 ## Makna Penulisan Versi
 
 Versi dependency seperti `"4"`, `"1"`, dan `"0.8"` diproses Cargo sebagai persyaratan versi, umumnya dengan aturan kompatibilitas caret. Artinya Cargo boleh memilih versi patch/minor yang masih memenuhi aturan kompatibilitas, bukan selalu tepat versi tunggal itu. Versi yang benar-benar dipilih direkam di `Cargo.lock`.
 
-Versi package sendiri (`0.1.0`) adalah metadata proyek dan tidak sama dengan versi compiler atau versi Actix. Pola semantik umumnya ditulis `MAJOR.MINOR.PATCH`.
+Versi package sendiri (`0.1.0`) adalah metadata proyek dan tidak sama dengan versi compiler atau versi Axum. Pola semantik umumnya ditulis `MAJOR.MINOR.PATCH`.
 
 ## Mengapa Fitur Harus Diaktifkan?
 

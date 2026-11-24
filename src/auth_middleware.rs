@@ -1,126 +1,132 @@
-use actix_web::{
-    body::MessageBody,
-    dev::{ServiceRequest, ServiceResponse},
-    error::{ErrorInternalServerError, ErrorUnauthorized},
-    http::Method,
+use axum::{
+    extract::{Request, State},
+    http::{header::AUTHORIZATION, Method},
     middleware::Next,
-    web, Error, HttpMessage,
+    response::Response,
 };
 
 use crate::{
     auth::{jwt::AuthenticatedUser, role::Role},
+    error::ApiError,
     state::AppState,
 };
 
 pub async fn require_login(
-    request: ServiceRequest,
-    next: Next<impl MessageBody>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
-    let (request, _) = authenticate(request).await?;
-    next.call(request).await
+    State(state): State<AppState>,
+    mut request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    let token = bearer_token(&request)?;
+    let user = authenticate(&state, &token).await?;
+    request.extensions_mut().insert(user);
+    Ok(next.run(request).await)
 }
 
 pub async fn require_admin(
-    request: ServiceRequest,
-    next: Next<impl MessageBody + 'static>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
-    authorize(request, next, |role| role == Role::Admin).await
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    authorize(&state, request, next, |role| role == Role::Admin).await
 }
 
 pub async fn require_menu_access(
-    request: ServiceRequest,
-    next: Next<impl MessageBody + 'static>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
     let method = request.method().clone();
-    authorize(request, next, move |role| {
+    authorize(&state, request, next, move |role| {
         menu_access_allowed(role, &method)
     })
     .await
 }
 
 pub async fn require_order_access(
-    request: ServiceRequest,
-    next: Next<impl MessageBody + 'static>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
     let method = request.method().clone();
-    let path = request.path().to_owned();
-    authorize(request, next, move |role| {
+    let path = request.uri().path().to_owned();
+    authorize(&state, request, next, move |role| {
         order_access_allowed(role, &method, &path)
     })
     .await
 }
 
 pub async fn require_payment_access(
-    request: ServiceRequest,
-    next: Next<impl MessageBody + 'static>,
-) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
     let method = request.method().clone();
-    let path = request.path().to_owned();
-    authorize(request, next, move |role| {
+    let path = request.uri().path().to_owned();
+    authorize(&state, request, next, move |role| {
         payment_access_allowed(role, &method, &path)
     })
     .await
 }
 
-async fn authorize<B, F>(
-    request: ServiceRequest,
-    next: Next<B>,
+async fn authorize<F>(
+    state: &AppState,
+    mut request: Request,
+    next: Next,
     allowed: F,
-) -> Result<ServiceResponse<B>, Error>
+) -> Result<Response, ApiError>
 where
-    B: MessageBody + 'static,
     F: FnOnce(Role) -> bool,
 {
-    let (request, user) = authenticate(request).await?;
+    let token = bearer_token(&request)?;
+    let user = authenticate(state, &token).await?;
     if !allowed(user.role) {
-        return Err(actix_web::error::ErrorForbidden(
-            "Role tidak memiliki akses ke endpoint ini",
+        return Err(ApiError::forbidden(
+            "Role akun tidak memiliki akses ke endpoint ini",
         ));
     }
 
-    next.call(request).await
+    request.extensions_mut().insert(user);
+    Ok(next.run(request).await)
 }
 
-async fn authenticate(
-    request: ServiceRequest,
-) -> Result<(ServiceRequest, AuthenticatedUser), Error> {
-    let token = request
-        .headers()
-        .get(actix_web::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| ErrorUnauthorized("Bearer token diperlukan"))?;
-
-    let state = request
-        .app_data::<web::Data<AppState>>()
-        .ok_or_else(|| ErrorInternalServerError("Konfigurasi autentikasi tidak tersedia"))?;
+async fn authenticate(state: &AppState, token: &str) -> Result<AuthenticatedUser, ApiError> {
     let user = state
         .jwt
         .verify(token)
-        .map_err(|_| ErrorUnauthorized("Token tidak valid atau sudah kedaluwarsa"))?;
+        .map_err(|_| ApiError::unauthorized("Token tidak valid atau sudah kedaluwarsa"))?;
 
     let stored_role = sqlx::query_scalar::<_, String>(r#"SELECT role FROM "user" WHERE id = $1"#)
         .bind(user.user_id)
         .fetch_optional(&state.db)
         .await
-        .map_err(|_| ErrorInternalServerError("Gagal memvalidasi role akun"))?
-        .ok_or_else(|| ErrorUnauthorized("Akun tidak lagi tersedia"))?;
+        .map_err(|error| ApiError::internal("Gagal memvalidasi role akun", error))?
+        .ok_or_else(|| ApiError::unauthorized("Akun tidak lagi tersedia"))?;
+
     let current_role = Role::from_database(&stored_role)
-        .ok_or_else(|| ErrorInternalServerError("Role akun tidak valid di database"))?;
+        .ok_or_else(|| ApiError::internal_message("Role akun tidak valid di database"))?;
 
     if current_role != user.role {
-        return Err(ErrorUnauthorized(
+        return Err(ApiError::unauthorized(
             "Role akun berubah; silakan login kembali",
         ));
     }
 
-    request.extensions_mut().insert(user);
-    Ok((request, user))
+    Ok(user)
+}
+
+fn bearer_token(request: &Request) -> Result<String, ApiError> {
+    request
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| ApiError::unauthorized("Bearer token diperlukan"))
 }
 
 fn is_order_detail_path(path: &str) -> bool {
-    path.strip_prefix("/api/orders/")   
+    path.strip_prefix("/api/orders/")
         .is_some_and(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
@@ -155,7 +161,7 @@ fn payment_access_allowed(role: Role, method: &Method, path: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::http::Method;
+    use axum::http::Method;
 
     use crate::auth::role::Role;
 

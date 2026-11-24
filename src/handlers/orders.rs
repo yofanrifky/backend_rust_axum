@@ -1,105 +1,120 @@
-use actix_web::{web, HttpResponse, Responder};
+use axum::{
+    extract::{Extension, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 
 use crate::{
     auth::{jwt::AuthenticatedUser, role::Role},
+    error::ApiError,
+    extractors::{ApiJson, ApiPath, ApiQuery},
     models::{CreateOrderInput, Order, OrderInput, OrderPatchInput},
     state::AppState,
 };
 
 pub async fn get_orders(
-    state: web::Data<AppState>,
-    user: web::ReqData<AuthenticatedUser>,
-    query: web::Query<HashMap<String, String>>,
-) -> impl Responder {
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    ApiQuery(query): ApiQuery<HashMap<String, String>>,
+) -> Result<Response, ApiError> {
     let field = query.get("field").map(String::as_str);
     let is_admin = user.role == Role::Admin;
-    let result = match field {
+
+    let values = match field {
         None => {
-            let query = "SELECT id, customer_name, item_name, quantity, status FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC";
-            match sqlx::query_as::<_, Order>(query)
-                .bind(is_admin)
-                .bind(user.user_id)
-                .fetch_all(&state.db)
-                .await
-            {
-                Ok(orders) => {
-                    let values = orders
-                        .into_iter()
-                        .map(|order| {
-                            serde_json::json!([
-                                order.id,
-                                order.customer_name,
-                                order.item_name,
-                                order.quantity,
-                                order.status
-                            ])
-                        })
-                        .collect::<Vec<_>>();
-                    return HttpResponse::Ok().json(values);
-                }
-                Err(error) => return database_error("Gagal mengambil daftar pesanan", error),
-            }
+            let orders = sqlx::query_as::<_, Order>(
+                "SELECT id, customer_name, item_name, quantity, status FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
+            )
+            .bind(is_admin)
+            .bind(user.user_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|error| ApiError::internal("Gagal mengambil daftar pesanan", error))?;
+
+            serde_json::json!(orders
+                .into_iter()
+                .map(|order| [
+                    serde_json::json!(order.id),
+                    serde_json::json!(order.customer_name),
+                    serde_json::json!(order.item_name),
+                    serde_json::json!(order.quantity),
+                    serde_json::json!(order.status),
+                ])
+                .collect::<Vec<_>>())
         }
-        Some("id") => sqlx::query_scalar::<_, i32>(
-            "SELECT id FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
-        )
-        .bind(is_admin)
-        .bind(user.user_id)
-        .fetch_all(&state.db)
-        .await
-        .map(|values| serde_json::json!(values)),
-        Some("customer_name") => sqlx::query_scalar::<_, String>(
-            "SELECT customer_name FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
-        )
-        .bind(is_admin)
-        .bind(user.user_id)
-        .fetch_all(&state.db)
-        .await
-        .map(|values| serde_json::json!(values)),
-        Some("item_name") => sqlx::query_scalar::<_, String>(
-            "SELECT item_name FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
-        )
-        .bind(is_admin)
-        .bind(user.user_id)
-        .fetch_all(&state.db)
-        .await
-        .map(|values| serde_json::json!(values)),
-        Some("quantity") => sqlx::query_scalar::<_, i32>(
-            "SELECT quantity FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
-        )
-        .bind(is_admin)
-        .bind(user.user_id)
-        .fetch_all(&state.db)
-        .await
-        .map(|values| serde_json::json!(values)),
-        Some("status") => sqlx::query_scalar::<_, String>(
-            "SELECT status FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
-        )
-        .bind(is_admin)
-        .bind(user.user_id)
-        .fetch_all(&state.db)
-        .await
-        .map(|values| serde_json::json!(values)),
-        _ => {
-            return HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "Field harus salah satu dari: id, customer_name, item_name, quantity, status"
-            }));
+        Some("id") => {
+            let values = sqlx::query_scalar::<_, i32>(
+                "SELECT id FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
+            )
+            .bind(is_admin)
+            .bind(user.user_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|error| ApiError::internal("Gagal mengambil daftar pesanan", error))?;
+            serde_json::json!(values)
+        }
+        Some("customer_name") => {
+            let values = sqlx::query_scalar::<_, String>(
+                "SELECT customer_name FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
+            )
+            .bind(is_admin)
+            .bind(user.user_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|error| ApiError::internal("Gagal mengambil daftar pesanan", error))?;
+            serde_json::json!(values)
+        }
+        Some("item_name") => {
+            let values = sqlx::query_scalar::<_, String>(
+                "SELECT item_name FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
+            )
+            .bind(is_admin)
+            .bind(user.user_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|error| ApiError::internal("Gagal mengambil daftar pesanan", error))?;
+            serde_json::json!(values)
+        }
+        Some("quantity") => {
+            let values = sqlx::query_scalar::<_, i32>(
+                "SELECT quantity FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
+            )
+            .bind(is_admin)
+            .bind(user.user_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|error| ApiError::internal("Gagal mengambil daftar pesanan", error))?;
+            serde_json::json!(values)
+        }
+        Some("status") => {
+            let values = sqlx::query_scalar::<_, String>(
+                "SELECT status FROM orders WHERE $1 OR user_id = $2 ORDER BY id DESC",
+            )
+            .bind(is_admin)
+            .bind(user.user_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|error| ApiError::internal("Gagal mengambil daftar pesanan", error))?;
+            serde_json::json!(values)
+        }
+        Some(_) => {
+            return Err(ApiError::bad_request(
+                "Field harus salah satu dari: id, customer_name, item_name, quantity, status",
+            ));
         }
     };
 
-    match result {
-        Ok(values) => HttpResponse::Ok().json(values),
-        Err(error) => database_error("Gagal mengambil daftar pesanan", error),
-    }
+    Ok(Json(values).into_response())
 }
 
 pub async fn get_order(
-    state: web::Data<AppState>,
-    path: web::Path<i32>,
-    user: web::ReqData<AuthenticatedUser>,
-) -> impl Responder {
-    let order_id = path.into_inner();
+    State(state): State<AppState>,
+    ApiPath(order_id): ApiPath<i32>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Result<Response, ApiError> {
     let order = if user.role == Role::Pembeli {
         sqlx::query_as::<_, Order>(
             "SELECT id, customer_name, item_name, quantity, status FROM orders WHERE id = $1 AND user_id = $2",
@@ -115,59 +130,66 @@ pub async fn get_order(
         .bind(order_id)
         .fetch_optional(&state.db)
         .await
-    };
-
-    match order {
-        Ok(Some(order)) => HttpResponse::Ok().json(serde_json::json!([
-            order.id,
-            order.customer_name,
-            order.item_name,
-            order.quantity,
-            order.status
-        ])),
-        Ok(None) => {
-            HttpResponse::NotFound().json(serde_json::json!({"error": "Pesanan tidak ditemukan"}))
-        }
-        Err(error) => database_error("Gagal mengambil pesanan", error),
     }
+    .map_err(|error| ApiError::internal("Gagal mengambil pesanan", error))?
+    .ok_or_else(|| ApiError::not_found("Pesanan tidak ditemukan"))?;
+
+    Ok(Json(serde_json::json!([
+        order.id,
+        order.customer_name,
+        order.item_name,
+        order.quantity,
+        order.status
+    ]))
+    .into_response())
 }
 
 pub async fn create_order(
-    state: web::Data<AppState>,
-    user: web::ReqData<AuthenticatedUser>,
-    body: web::Json<CreateOrderInput>,
-) -> impl Responder {
-    if let Some(response) = validate_new_order(&body) {
-        return response;
-    }
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    body: ApiJson<CreateOrderInput>,
+) -> Result<Response, ApiError> {
+    validate_new_order(&body)?;
 
-    let mut transaction = match state.db.begin().await {
-        Ok(transaction) => transaction,
-        Err(error) => return database_error("Gagal memulai pembelian", error),
-    };
+    let mut transaction = state
+        .db
+        .begin()
+        .await
+        .map_err(|error| ApiError::internal("Gagal memulai pembelian", error))?;
 
-    let (item_name, unit_price) = match sqlx::query_as::<_, (String, rust_decimal::Decimal)>(
+    let menu = sqlx::query_as::<_, (String, Decimal)>(
         "UPDATE menus SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING name, price",
     )
     .bind(body.quantity)
     .bind(body.menu_id)
     .fetch_optional(&mut *transaction)
-    .await
-    {
-        Ok(Some(item_name)) => item_name,
+    .await;
+
+    let (item_name, unit_price) = match menu {
+        Ok(Some(menu)) => menu,
         Ok(None) => {
-            let _ = transaction.rollback().await;
-            return HttpResponse::Conflict().json(serde_json::json!({
-                "error": "Menu tidak ditemukan atau stok tidak mencukupi"
-            }));
+            if let Err(error) = transaction.rollback().await {
+                return Err(ApiError::internal(
+                    "Gagal membatalkan transaksi pembelian",
+                    error,
+                ));
+            }
+            return Err(ApiError::conflict(
+                "Menu tidak ditemukan atau stok tidak mencukupi",
+            ));
         }
         Err(error) => {
-            let _ = transaction.rollback().await;
-            return database_error("Gagal memeriksa dan mengurangi stok", error);
+            if let Err(rollback_error) = transaction.rollback().await {
+                eprintln!("[ERROR] Gagal membatalkan transaksi pembelian: {rollback_error}");
+            }
+            return Err(ApiError::internal(
+                "Gagal memeriksa dan mengurangi stok",
+                error,
+            ));
         }
     };
 
-    let order = match sqlx::query_as::<_, Order>(
+    let order = sqlx::query_as::<_, Order>(
         "INSERT INTO orders (customer_name, item_name, quantity, status, user_id, menu_id, unit_price) VALUES ($1, $2, $3, 'lunas', $4, $5, $6) RETURNING id, customer_name, item_name, quantity, status",
     )
     .bind(body.customer_name.trim())
@@ -177,92 +199,99 @@ pub async fn create_order(
     .bind(body.menu_id)
     .bind(unit_price)
     .fetch_one(&mut *transaction)
-    .await
-    {
+    .await;
+
+    let order = match order {
         Ok(order) => order,
         Err(error) => {
-            let _ = transaction.rollback().await;
-            return database_error("Gagal membuat pesanan", error);
+            if let Err(rollback_error) = transaction.rollback().await {
+                eprintln!("[ERROR] Gagal membatalkan transaksi pembelian: {rollback_error}");
+            }
+            return Err(ApiError::internal("Gagal membuat pesanan", error));
         }
     };
 
-    let total = unit_price * rust_decimal::Decimal::from(body.quantity);
-    let payment_id = match sqlx::query_scalar::<_, i32>(
+    let payment_id = sqlx::query_scalar::<_, i32>(
         "INSERT INTO payments (order_id, user_id, method, status, paid_at) VALUES ($1, $2, $3, 'lunas', NOW()) RETURNING id",
     )
     .bind(order.id)
     .bind(user.user_id)
     .bind(body.payment_method.trim())
     .fetch_one(&mut *transaction)
-    .await
-    {
+    .await;
+
+    let payment_id = match payment_id {
         Ok(payment_id) => payment_id,
         Err(error) => {
-            let _ = transaction.rollback().await;
-            return database_error("Gagal mencatat pembayaran", error);
+            if let Err(rollback_error) = transaction.rollback().await {
+                eprintln!("[ERROR] Gagal membatalkan transaksi pembelian: {rollback_error}");
+            }
+            return Err(ApiError::internal("Gagal mencatat pembayaran", error));
         }
     };
 
-    if let Err(error) = transaction.commit().await {
-        return database_error("Gagal menyelesaikan pembelian", error);
-    }
+    transaction
+        .commit()
+        .await
+        .map_err(|error| ApiError::internal("Gagal menyelesaikan pembelian", error))?;
 
-    HttpResponse::Created().json(serde_json::json!({
-        "id": order.id,
-        "customer_name": order.customer_name,
-        "item_name": order.item_name,
-        "quantity": order.quantity,
-        "status": order.status,
-        "payment": {
-            "id": payment_id,
-            "method": body.payment_method.trim(),
-            "status": "lunas",
-            "total": total,
-            "currency": "IDR"
-        }
-    }))
+    let total = unit_price * Decimal::from(body.quantity);
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "id": order.id,
+            "customer_name": order.customer_name,
+            "item_name": order.item_name,
+            "quantity": order.quantity,
+            "status": order.status,
+            "payment": {
+                "id": payment_id,
+                "method": body.payment_method.trim(),
+                "status": "lunas",
+                "total": total,
+                "currency": "IDR"
+            }
+        })),
+    )
+        .into_response())
 }
 
 pub async fn update_order(
-    state: web::Data<AppState>,
-    path: web::Path<i32>,
-    body: web::Json<OrderInput>,
-) -> impl Responder {
-    if let Some(response) = validate_order(&body) {
-        return response;
-    }
+    State(state): State<AppState>,
+    ApiPath(order_id): ApiPath<i32>,
+    body: ApiJson<OrderInput>,
+) -> Result<Response, ApiError> {
+    validate_order(&body)?;
 
-    let query = "UPDATE orders SET customer_name = $1, item_name = $2, quantity = $3, status = $4 WHERE id = $5 RETURNING id, customer_name, item_name, quantity, status";
-    match sqlx::query_as::<_, Order>(query)
-        .bind(body.customer_name.trim())
-        .bind(body.item_name.trim())
-        .bind(body.quantity)
-        .bind(body.status.trim())
-        .bind(path.into_inner())
-        .fetch_optional(&state.db)
-        .await
-    {
-        Ok(Some(order)) => HttpResponse::Ok().json(order),
-        Ok(None) => {
-            HttpResponse::NotFound().json(serde_json::json!({"error": "Pesanan tidak ditemukan"}))
-        }
-        Err(error) => database_error("Gagal memperbarui pesanan", error),
-    }
+    let order = sqlx::query_as::<_, Order>(
+        "UPDATE orders SET customer_name = $1, item_name = $2, quantity = $3, status = $4 WHERE id = $5 RETURNING id, customer_name, item_name, quantity, status",
+    )
+    .bind(body.customer_name.trim())
+    .bind(body.item_name.trim())
+    .bind(body.quantity)
+    .bind(body.status.trim())
+    .bind(order_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|error| ApiError::internal("Gagal memperbarui pesanan", error))?
+    .ok_or_else(|| ApiError::not_found("Pesanan tidak ditemukan"))?;
+
+    Ok(Json(order).into_response())
 }
 
 pub async fn patch_order(
-    state: web::Data<AppState>,
-    path: web::Path<i32>,
-    body: web::Json<OrderPatchInput>,
-) -> impl Responder {
+    State(state): State<AppState>,
+    ApiPath(order_id): ApiPath<i32>,
+    body: ApiJson<OrderPatchInput>,
+) -> Result<Response, ApiError> {
     if body.customer_name.is_none()
         && body.item_name.is_none()
         && body.quantity.is_none()
         && body.status.is_none()
     {
-        return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Minimal satu field pesanan harus diisi"
-        }));
+        return Err(ApiError::bad_request(
+            "Minimal satu field pesanan harus diisi",
+        ));
     }
     if body
         .customer_name
@@ -277,97 +306,89 @@ pub async fn patch_order(
             .as_ref()
             .is_some_and(|status| status.trim().is_empty())
     {
-        return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Nama pelanggan, nama menu, dan status tidak boleh kosong"
-        }));
+        return Err(ApiError::bad_request(
+            "Nama pelanggan, nama menu, dan status tidak boleh kosong",
+        ));
     }
     if body.quantity.is_some_and(|quantity| quantity <= 0) {
-        return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Jumlah pesanan harus lebih besar dari 0"
-        }));
+        return Err(ApiError::bad_request(
+            "Jumlah pesanan harus lebih besar dari 0",
+        ));
     }
     if body.status.as_deref() == Some("paid") {
-        return HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Status paid hanya dapat ditetapkan melalui konfirmasi pembayaran"
-        }));
+        return Err(ApiError::bad_request(
+            "Status paid hanya dapat ditetapkan melalui konfirmasi pembayaran",
+        ));
     }
 
-    let query = "UPDATE orders SET customer_name = COALESCE($1, customer_name), item_name = COALESCE($2, item_name), quantity = COALESCE($3, quantity), status = COALESCE($4, status) WHERE id = $5 RETURNING id, customer_name, item_name, quantity, status";
-    match sqlx::query_as::<_, Order>(query)
-        .bind(body.customer_name.as_deref().map(str::trim))
-        .bind(body.item_name.as_deref().map(str::trim))
-        .bind(body.quantity)
-        .bind(body.status.as_deref().map(str::trim))
-        .bind(path.into_inner())
-        .fetch_optional(&state.db)
-        .await
-    {
-        Ok(Some(order)) => HttpResponse::Ok().json(order),
-        Ok(None) => {
-            HttpResponse::NotFound().json(serde_json::json!({"error": "Pesanan tidak ditemukan"}))
-        }
-        Err(error) => database_error("Gagal memperbarui pesanan", error),
-    }
+    let order = sqlx::query_as::<_, Order>(
+        "UPDATE orders SET customer_name = COALESCE($1, customer_name), item_name = COALESCE($2, item_name), quantity = COALESCE($3, quantity), status = COALESCE($4, status) WHERE id = $5 RETURNING id, customer_name, item_name, quantity, status",
+    )
+    .bind(body.customer_name.as_deref().map(str::trim))
+    .bind(body.item_name.as_deref().map(str::trim))
+    .bind(body.quantity)
+    .bind(body.status.as_deref().map(str::trim))
+    .bind(order_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|error| ApiError::internal("Gagal memperbarui pesanan", error))?
+    .ok_or_else(|| ApiError::not_found("Pesanan tidak ditemukan"))?;
+
+    Ok(Json(order).into_response())
 }
 
-pub async fn delete_order(state: web::Data<AppState>, path: web::Path<i32>) -> impl Responder {
-    match sqlx::query("DELETE FROM orders WHERE id = $1")
-        .bind(path.into_inner())
+pub async fn delete_order(
+    State(state): State<AppState>,
+    ApiPath(order_id): ApiPath<i32>,
+) -> Result<Response, ApiError> {
+    let result = sqlx::query("DELETE FROM orders WHERE id = $1")
+        .bind(order_id)
         .execute(&state.db)
         .await
-    {
-        Ok(result) if result.rows_affected() > 0 => {
-            HttpResponse::Ok().json(serde_json::json!({"message": "Pesanan berhasil dihapus"}))
-        }
-        Ok(_) => {
-            HttpResponse::NotFound().json(serde_json::json!({"error": "Pesanan tidak ditemukan"}))
-        }
-        Err(error) => database_error("Gagal menghapus pesanan", error),
+        .map_err(|error| ApiError::internal("Gagal menghapus pesanan", error))?;
+
+    if result.rows_affected() == 0 {
+        return Err(ApiError::not_found("Pesanan tidak ditemukan"));
     }
+
+    Ok(Json(serde_json::json!({ "message": "Pesanan berhasil dihapus" })).into_response())
 }
 
-fn validate_order(order: &OrderInput) -> Option<HttpResponse> {
+fn validate_order(order: &OrderInput) -> Result<(), ApiError> {
     if order.customer_name.trim().is_empty()
         || order.item_name.trim().is_empty()
         || order.status.trim().is_empty()
     {
-        return Some(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Nama pelanggan, nama menu, dan status wajib diisi"
-        })));
+        return Err(ApiError::bad_request(
+            "Nama pelanggan, nama menu, dan status wajib diisi",
+        ));
     }
     if order.quantity <= 0 {
-        return Some(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Jumlah pesanan harus lebih besar dari 0"
-        })));
+        return Err(ApiError::bad_request(
+            "Jumlah pesanan harus lebih besar dari 0",
+        ));
     }
     if order.status == "paid" {
-        return Some(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Status paid hanya dapat ditetapkan melalui konfirmasi pembayaran"
-        })));
+        return Err(ApiError::bad_request(
+            "Status paid hanya dapat ditetapkan melalui konfirmasi pembayaran",
+        ));
     }
-    None
+    Ok(())
 }
 
-fn validate_new_order(order: &CreateOrderInput) -> Option<HttpResponse> {
+fn validate_new_order(order: &CreateOrderInput) -> Result<(), ApiError> {
     if order.customer_name.trim().is_empty() {
-        return Some(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Nama pelanggan wajib diisi"
-        })));
+        return Err(ApiError::bad_request("Nama pelanggan wajib diisi"));
     }
     if order.menu_id <= 0 || order.quantity <= 0 {
-        return Some(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "ID menu dan jumlah pesanan harus lebih besar dari 0"
-        })));
+        return Err(ApiError::bad_request(
+            "ID menu dan jumlah pesanan harus lebih besar dari 0",
+        ));
     }
     if !matches!(order.payment_method.trim(), "cash" | "bank_transfer") {
-        return Some(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Metode pembayaran harus cash atau bank_transfer"
-        })));
+        return Err(ApiError::bad_request(
+            "Metode pembayaran harus cash atau bank_transfer",
+        ));
     }
-    None
-}
-
-fn database_error(message: &str, error: sqlx::Error) -> HttpResponse {
-    eprintln!("{message}: {error}");
-    HttpResponse::InternalServerError().json(serde_json::json!({"error": message}))
+    Ok(())
 }

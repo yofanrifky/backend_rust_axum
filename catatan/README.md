@@ -92,6 +92,8 @@ Jalankan perintah dari folder yang berisi `Cargo.toml`. Server default mendengar
 | `.env` | [Konfigurasi](env.md) | Menyediakan nilai lokal seperti URL database. |
 | `Cargo.toml` | [Dependency](cargo.md) | Mencatat pustaka yang dipakai. |
 | `src/main.rs` | [Startup](main.md) | Merangkai semua bagian dan menyalakan server. |
+| `src/error.rs` | — | Mengubah error menjadi JSON dengan status HTTP yang tepat. |
+| `src/extractors.rs` | — | Membaca JSON, path, dan query dengan error berbahasa Indonesia. |
 | `src/state.rs` | [State](state.md) | Membagikan pool database dan layanan JWT. |
 | `src/db.rs` | [Skema database](db.md) | Membuat tabel saat startup. |
 | `src/models.rs` | [Model](models.md) | Mendefinisikan bentuk data Rust. |
@@ -116,7 +118,7 @@ Jalankan perintah dari folder yang berisi `Cargo.toml`. Server default mendengar
 | `src/handlers/format.rs` | [Format harga](handlers/format.md) | Menulis harga dalam format Rupiah. |
 | `src/handlers/menus.rs` | [Handler menu](handlers/menus.md) | Operasi data menu. |
 | `src/handlers/orders.rs` | [Handler pesanan](handlers/orders.md) | Operasi data pesanan. |
-| `src/handlers/payments.rs` | [Handler pembayaran](handlers/payments.md) | Permintaan pembayaran, konfirmasi, dan struk. |
+| `src/handlers/payments.rs` | [Handler pembayaran](handlers/payments.md) | Daftar pembayaran dan struk pesanan. |
 
 ## API yang bisa dicoba
 
@@ -195,8 +197,8 @@ Password baru di-hash memakai Argon2id dan password plaintext akun lama di-upgra
 | `?` | Jika operasi gagal, kembalikan error dari fungsi sekarang. |
 | `.await` | Tunggu operasi asynchronous, biasanya I/O atau query. |
 | `.bind(value)` | Kirim nilai SQL terpisah dari teks query. |
-| `web::Json<T>` | Minta Actix membaca body JSON menjadi tipe `T`. |
-| `web::Path<T>` | Ambil nilai dari bagian dinamis URL. |
+| `ApiJson<T>` | Baca body JSON dan ubah kegagalan format menjadi error JSON yang mudah dibaca. |
+| `ApiPath<T>` | Ambil nilai dari bagian dinamis URL, misalnya ID menu. |
 
 ### Cek pemahaman
 

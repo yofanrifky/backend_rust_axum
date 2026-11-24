@@ -1,7 +1,7 @@
-# 🍽️ Catatan Postman: Restoran API (Actix Web + Rust)
+# 🍽️ Catatan Postman: Restoran API (Axum + Rust)
 
 > Panduan memakai semua endpoint di Postman, mulai dari persiapan, login, sampai pesan dan bayar.
-> Sumber: README dan catatan repo `backend-actixweb-rust`.
+> Sumber: README dan catatan repo Restoran API berbasis Axum.
 > Bagian bertanda ⚠️ belum terkonfirmasi dari kode. Cek dulu sebelum dipakai.
 
 ---
@@ -26,7 +26,7 @@
 ## 1. 🗺️ Gambaran besar
 
 ```
-   POSTMAN                      SERVER (Actix Web)                DATABASE
+   POSTMAN                      SERVER (Axum)                      DATABASE
  ┌─────────┐   request    ┌──────────────────────────┐         ┌──────────┐
  │ method  │ ───────────► │ 1. Route (cocokkan URL)  │         │PostgreSQL│
  │ URL     │              │ 2. Middleware (cek token │ ◄─────► │          │

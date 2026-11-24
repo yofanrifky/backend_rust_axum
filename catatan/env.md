@@ -35,11 +35,11 @@ Simpan konfigurasi itu pada file bernama `.env` di folder backend, sejajar denga
 ## Cara Kode Menggunakannya
 
 - `dotenvy::dotenv().ok()` mencoba membaca file; `.ok()` mengabaikan kegagalan membaca.
-- `env::var("DATABASE_URL").expect(...)` tetap mewajibkan variabel tersebut. Jika hilang, startup berhenti.
+- `env::var("DATABASE_URL")` tetap mewajibkan variabel tersebut. Jika hilang, startup berhenti dengan pesan konfigurasi.
 - `HOST` dan `PORT` dibaca dengan `unwrap_or_else`, sehingga ada nilai default.
 - `JWT_SECRET` wajib tersedia dan harus memiliki minimal 32 byte. Jika tidak ada atau terlalu pendek, startup berhenti dengan error konfigurasi.
 - Port di-parse sebagai `u16`; teks nonangka atau angka di luar rentangnya membuat startup gagal.
-- URL DB dipakai oleh `PgPoolOptions::connect`; host dan port dipakai oleh `HttpServer::bind`; `JWT_SECRET` dipakai oleh layanan JWT HS256.
+- URL DB dipakai oleh `PgPoolOptions::connect`; host dan port dipakai oleh `TcpListener::bind`; `JWT_SECRET` dipakai oleh layanan JWT HS256.
 
 Jika koneksi gagal, periksa apakah PostgreSQL hidup dan URL benar. Jika port sudah dipakai, pilih port lain.
 
